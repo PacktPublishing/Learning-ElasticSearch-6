@@ -1,0 +1,437 @@
+#This document covers code for sections 2 - 6. It assumes that you've added the snapshot which contains es_agg and movies indices, per steps_to_data.txt
+
+#Section 2 #####################################
+
+#Section 2.3 #######################################
+#CLUSTERS
+
+#Checking cluster health
+curl -XGET http://localhost:9200/_cluster/health?pretty
+
+#Section 2.4 #######################################
+#SHARDS AND REPLICAS
+
+#setting number of shards in an index (at index creation)
+
+PUT INDEX_NAME
+{
+  "settings": {
+    "number_of_shards":1,
+    "number_of_replicas":0
+  }
+}
+
+
+#can't change once it's set. You can, however do index shrinking for the purpose of speeding up the process of re-indexing, but that's an advanced topic and thus beyond the scope of this course
+
+PUT INDEX_NAME/_settings
+{
+  "number_of_shards":4
+}
+
+#should throw error
+
+#Note you can change the number of replicas at any time
+
+PUT INDEX_NAME/_settings
+{
+  "number_of_replicas":6
+}
+
+
+
+#Section 2.5 #######################################
+#ADDING AND DELETING AN INDEX
+curl -XPUT http://localhost:9200/INDEX_NAME
+
+curl -XDELETE http://localhost:9200/INDEX_NAME
+
+#confirm index
+curl -XGET http://localhost:9200/INDEX_NAME?pretty
+
+
+#Section 2.6 #######################################
+#ADDING AND DELETING DOCUMENTS
+PUT /my_movies/movie/1/_create
+{
+     "name": "Example Movie One",
+     "actor_count": 10,
+     "date": "2015-02-10"
+
+}
+
+GET /movies/movie/1
+
+DELETE /movies/movie/1
+
+
+#Section 2.7 #######################################
+#BULK API
+
+#From Kibana
+
+#View Index
+GET my_movies  #you can see here are previously created index "my_movies" along with the type of movie
+
+#Now we will use the bulk API to add two documents at once
+POST /_bulk
+{"index": { "_index":"my_movies", "_type":"movie", "_id":"2"}}
+{"name":"Sample Movie 2","actor_count":9,"date":"2015-01-10"}
+{"index": { "_index":"my_movies", "_type":"movie", "_id":"3"}}
+{"name":"Sample Movie 3","actor_count":2,"date":"2009-12-11"}
+
+#Confirm that bulk add was successful w/ search argument
+GET /my_movies/_search
+
+
+
+
+#Section 3.2 #######################################
+#Searching with RESTful API
+GET /movies/_count
+
+
+GET /movies/movie/_count 
+{
+"query": { 
+    "term":{
+      "genre":"comedy"
+    } 
+  } 
+}
+
+#Assumes that genre field is the of the type keyword
+
+
+GET /_all/movie
+
+
+GET /movies/movie/_count 
+{ 
+  "query": {
+    "match":{
+      "title":"Need for Speed"
+    } 
+  } 
+}
+
+
+#Assumes title field is described as or is of the type text
+
+
+GET movies/_search?size=5&from=10
+
+
+GET movies,movies2/_search
+
+
+GET /movies/movie
+{
+  "fields": ["title","year"],
+  "query": {
+    "term": {
+      "genre":"comedy"
+    } 
+  }
+}
+
+#Section 3.3 #######################################
+#Updating w/ RESTful API
+
+PUT /index_test/type_test/6 
+{
+  "name":"Ethan Anthony",
+  "interest":"ElasticSearch" 
+}
+
+
+GET /index_test/type_test/6
+
+PUT /index_test/ type_test/6 
+{
+  "name":"EA" 
+}
+
+
+GET /index_test/type_test/6
+
+
+PUT /index_test/type_test/8 
+{
+  "name":"Bill Gates",
+  "interest":"Microsoft" 
+}
+
+
+POST /index_test/type_test/8/_update 
+{
+  "doc": { 
+    "interest":"world hunger" 
+  } 
+}
+
+GET /index_test/type_test/8
+
+
+#Section 3.4 #######################################
+#Introduction to DSL
+
+POST movies/movie/_search 
+{ 
+  "query": {
+    "match_all":{} 
+  }
+}
+
+
+
+POST /movies/movie/_search 
+{ 
+  "query": { 
+    "multi_match": {
+      "query": "horror",  
+      "fields": ["genre","title"] 
+    }
+  } 
+}
+
+#Section 3.5 #######################################
+#DSL: Context, relevancy and score
+GET movies/movie/_search
+{
+  "query": { 
+    "bool": { 
+      "must": [
+        { "match": { "title": "Night" }} 
+      ],
+      "filter": [ 
+        { "term":  { "genre": "Horror" }}
+      ]
+    }
+  }
+}
+
+
+#Section 3.6 #######################################
+#Exist Query
+
+GET /movies/_search 
+{
+  "query":{ 
+    "exist":{
+      "field":"actor"
+    }
+  } 
+}
+
+
+#Section 4 ########################################
+#follow allow with course video
+
+#Section 5 ########################################
+# see THE_STEPS_TO_LOGGING
+
+#Section 6 ########################################
+
+#Section 6.1 #######################################
+#demonstrate term versus full-text search
+PUT /test_movies
+{
+  "mappings": {
+    "film" : {
+      "properties": {
+        "full": {
+          "type":"text"
+        },
+        "exact": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}
+
+
+#ADD A DOCUMENT
+PUT /test_movies/film/1
+{
+  "full":"Best Day of the Summer",
+  "exact":"Best Day of the Summer"
+}
+
+#Note: Full field is analyzed and broken down before being placed into inverted indices, the exact field will not
+
+# Run term queries on each field
+GET /test_movies/film/_count
+{
+  "query": {
+    "term": {
+      "exact": "Best Day of the Summer"
+    }
+  }
+}
+
+GET /test_movies/film/_count
+{
+  "query": {
+    "term": {
+      "full": "Best Day of the Summer"
+    }
+  }
+}
+
+
+#Range QUERY with year###################################
+GET /movies/movie/_search
+{
+  "query": {
+    "range": {
+      "year": {"gte":2015, "lt": 2016}
+    }
+  }
+}
+
+
+#BOOSTING################################################
+
+#BOOSTING INCLUDED IN EVERY QUERY... IF YOU WANT TO ADD MORE WEIGHT TO A GIVEN FIELD IN RESULTS FOR EVERY QUERY. Say you want to TITLE field to carry more weight than the description field
+[in presentation]
+PUT es_boosting
+{
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "title": {
+          "type": "text",
+          "boost": 2 
+        },
+        "description": {
+          "type": "text"
+        }
+      }
+    }
+  }
+}
+
+#This is an example of field mapping boosting. This replaced index time boosting, which was depricated as of ElasticSearch 5. Index time boosting is generally a bad idea, for among other reasons, because it  boosting could not be changed without reindexing all documents.
+
+
+#PER QUERY BASIS
+
+#Say you want to, instead, do boosting on a per query basis. This means that any matches on the title field will exceed those on the description field by a factor of 2 - that's twice the weight. If the boost value is three it would be.... you guessed it, 3 times the weight of any matches on the description field.
+
+
+#WithOUT boosting - Let's examin the score for the top three results. Now let's apply boosting to this query
+
+GET /movies/movie/_search
+{
+    "query": {
+        "match" : {
+            "title": {
+                "query": "Night of the Living Dead"
+            }
+        }
+    }
+}
+
+
+#With boosting... View resulting score (double the original score while others remain constant)
+GET /movies/movie/_search
+{
+    "query": {
+        "match" : {
+            "title": {
+                "query": "Night of the Living Dead",
+                "boost": 2
+            }
+        }
+    }
+}
+
+#Section 6.3 #######################################
+#GEO SEARCH 
+
+#GEO BOUNDS (square) around all IP ADDRESSED.  
+GET /INDEX_CREATED_FROM_LOG_ANALYSIS/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "size": 0,
+  "aggs": {
+    "viewport": {
+      "geo_bounds": {
+        "field":"pin.location",
+        "wrap_longitude":true
+      }
+    }
+  }
+}
+
+#NOTE: This index is included in the snapshot. No need to create it again########
+#AGGREGATIONS - create es_agg/aggre1
+PUT es_agg
+{
+    "settings" : {
+        "number_of_shards" : 1
+    },
+    "mappings" : {
+        "aggre1" : {
+            "properties" : {
+                "name" : { "type" : "text" },
+                "rating": { "type" : "float" },
+                "sold" : { "type" : "long" }
+            }
+        }
+    }
+}
+
+#Adding.....
+PUT /es_agg/aggre1/1
+{
+  "name":"ES Learning",
+  "rating": 4.2,
+  "sold": 600
+}
+####################################################################################
+
+#Get avg rating:
+GET /es_agg/aggre1/_search
+{
+  "size":0,
+  "aggs": {
+    "avg_rating": {
+      "avg": {
+        "field":"rating"
+      }
+    }
+  }
+}
+
+#Get avg sold:
+GET /es_agg/aggre1/_search
+{
+  "size":0,
+  "aggs": {
+    "avg_sold": {
+      "avg": {
+        "field":"sold"
+      }
+    }
+  }
+}
+
+#Get stats (mean, median, standard deviation etc.)
+
+GET /es_agg/aggre1/_search
+{
+  "size":0,
+  "aggs":{
+    "book_stats": {
+      "extended_stats": {
+        "field": "rating"
+      }
+    }
+  }
+}
+
