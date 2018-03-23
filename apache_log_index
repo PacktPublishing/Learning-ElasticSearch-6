@@ -1,0 +1,43 @@
+#Create index
+PUT apache_log
+
+#Update index template
+PUT _template/apache_log
+{
+  "template": "apache_log",
+  "settings": {
+    "index": {
+      "number_of_shards": "1",
+      "auto_expand_replicas": "0-1",
+      "codec": "best_compression"
+    }
+  },
+  "mappings": {
+     "doc": {
+        "dynamic": "strict",
+        "properties": {
+           "geoip": {
+              "dynamic": true,
+              "properties": {
+                 "location": {
+                    "type": "geo_point"
+                 },
+                 "ip": {
+                   "type": "ip"
+                 },
+                 "continent_code": {
+                  "type": "keyword"
+                 },
+                 "country_name": {
+                   "type": "keyword"
+                 }
+              },
+              "type": "object"
+           },
+           "@version": {
+              "type": "keyword"
+           }
+        }
+     }
+  }
+}
