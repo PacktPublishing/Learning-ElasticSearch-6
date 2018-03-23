@@ -1,0 +1,187 @@
+#1. Install elasticsearch, kibana, logstash and filebeat (download n unpack)
+#2. Install x-pack on elasticsearch, kibana and logstash
+#3. Install security password (with ES running) cd to the elasticsearch root directory and then run:
+bin/x-pack/setup-passwords interactive
+
+#assign passwords to elasticsearch, kibana and logstash_system
+
+#4. Update kibana.yml and logstash.yml in config/ directories
+
+#kibana (in kibana.yml) - add the below:
+elasticsearch.username: kibana
+elasticsearch.password: kibanaPASSWORDassigned
+
+#logstash (in logstash.yml) - add the below:
+xpack.monitoring.elasticsearch.username: logstash_system
+xpack.monitoring.elasticsearch.password: logstashPASSWORDassigned
+
+#5. Configure filebeat.yml
+
+(enabled must be set to true and paths (/var/log/*.log) should point to location of log files)
+-----------
+filebeat.prospectors:
+
+# Each - is a prospector. Most options can be set at the prospector level, so
+# you can use different prospectors for various configurations.
+# Below are the prospector specific configurations.
+
+- type: log
+
+  # Change to true to enable this prospector configuration.
+  enabled: true
+
+  # Paths that should be crawled and fetched. Glob based paths.
+  paths:
+    - /var/log/*.log
+    #- c:\programdata\elasticsearch\logs\*
+
+
+(comment out output.elasticsearch AND hosts: ["localhost:9200"] - because you will point to logstash on port 5044)
+--------------
+
+#-------------------------- Elasticsearch output ------------------------------
+#output.elasticsearch:
+  # Array of hosts to connect to.
+  #hosts: ["localhost:9200"]
+
+  # Optional protocol and basic auth credentials.
+  #protocol: "https"
+  #username: "elastic"
+  #password: "changeme"
+
+
+(UNcomment output.logstash AND hosts: ["localhost:5044"])
+----------------  
+
+#----------------------------- Logstash output --------------------------------
+output.logstash:
+  # The Logstash hosts
+  hosts: ["localhost:5044"]
+
+  # Optional SSL. By default is off.
+  # List of root certificates for HTTPS server verifications
+  #ssl.certificate_authorities: ["/etc/pki/root/ca.pem"]
+
+  # Certificate for SSL client authentication
+  #ssl.certificate: "/etc/pki/client/cert.pem"
+
+  # Client Certificate Key
+  #ssl.key: "/etc/pki/client/cert.key"
+
+
+#6. SAVE filebeat.yml
+
+#7. cd to filebeat root directory - cd /filebeat/root/dir
+
+#8. Grant root access to filebeat.yml
+sudo chown root filebeat.yml
+
+#9. ASSUMING this is the FIRST time you are running this pipeline over the given log directory
+START elasticsearch and then open another command prompt window, cd to the filebeat root directory and then run:
+
+sudo ./filebeat -e -c filebeat.yml -d "publish"
+
+Note: If it is NOT the first time (running logstash pipeline over the dir of log data) and you wish to run the same directory again you must FIRST delete the registry BEFORE doing #9... to do so (from within the filebeat root directory):
+
+sudo rm data/registry
+
+#10. After running #9 you should see an error because logstash is not yet running
+
+GETTING LOGSTASH READY
+
+#11. Create logstash roles (internal_reader AND internal_writer) from a newly opened command prompt window with the below commands - note both roles will apply to any index. If you wanted to specify, say logstash- index simply change the values for names from "*" to "logstash-*" 
+
+
+#for ALL indices
+#create role for logstash writer
+curl -u elastic:ESPASSWORD -XPOST 'localhost:9200/_xpack/security/role/logstash_writer'  -H "Content-Type: application/json" -d '{
+  "cluster": ["manage_index_templates", "monitor"],
+  "indices": [
+    {
+      "names": [ "*" ], 
+      "privileges": ["write","delete","create_index","create"]
+    }
+  ]
+}'
+
+
+
+#create role for logstash reader
+curl -u elastic:ESPASSWORD -XPOST 'localhost:9200/_xpack/security/role/logstash_reader'  -H "Content-Type: application/json" -d '{
+  "indices": [
+    {
+      "names": [ "*" ], 
+      "privileges": ["read","view_index_metadata"]
+    }
+  ]
+}'
+
+
+#12. Now that roles are create you need to create an internal user - let's called that user logstash_interal. We assign the reader and writer roles at the time of creation
+
+curl -u elastic:ESPASSWORD -XPOST 'localhost:9200/_xpack/security/user/logstash_internal'  -H "Content-Type: application/json" -d '{
+  "password" : "PASSWORD4INTERNALUSER",
+  "roles" : [ "logstash_writer","logstash_reader"],
+  "full_name" : "Internal Logstash User"
+}'
+
+#13. SETUP the .conf file for apache log files - IMPORTANT: Use the below
+
+input {
+   beats {
+      port => "5044"
+   } 
+   elasticsearch {
+      user => logstash_internal
+      password => PASSWORD4INTERNALUSER 
+   }
+}
+
+filter {
+
+   grok {
+      match => { "message" => "%{COMBINEDAPACHELOG}" }
+   }
+   date {
+      match => [ "timestamp" , "dd/MMM/yyyy:HH:mm:ss Z" ]
+   }
+   geoip {
+      source => "clientip"
+   }
+
+}
+
+output {
+ elasticsearch {
+   hosts => ["localhost:9200"]
+   index => "INDEX_NAME_HERE"
+   user => logstash_internal
+   password => PASSWORD4INTERNALUSER    
+ }
+}
+
+#14. Save .conf file in the root directory for logstash. Open a new console window and cd to the logstash root directory. From the logstash root directory run the following commands
+
+# to test pipeline
+
+bin/logstash -f YOUR_CONF_FILE.conf --config.test_and_exit
+
+
+# to run pipeline use - note: while --config.reload.automatic isn't required it is recommended because it allows you to update the .conf file withOUT stopping the logstash pipeline. to stop logstash pipeline simple do ctrl C
+
+bin/logstash -f YOUR_CONF_FILE.conf --config.reload.automatic
+
+#15. Look at the console window where you started filebeat. It should display each document as it is converted and pushed into ElasticSearch.
+
+#16. Log into kibana as the elastic user, go to the "Management" tab and click on "Index Patterns". You should see the name of the index you just created to store the log files in.
+
+
+Note: BE CAREFUL WITH KIBANA... If things don't seem to be working, clean out your browser cache files or use a different browser. Knowing this would have easily saved me 6 hours of struggling
+
+Note: Always use ctrl C to stop logstash pipeline. If this fails with mac simply restart the computer. If you wish to run the pipeline accross the same log data REMEMBER that you muse do the following:
+1. Stop filebeat
+ctrl C
+2. Delete registry
+sudo rm data/registry
+3. restart filebeat
+sudo ./filebeat -e -c filebeat.yml -d "publish"
