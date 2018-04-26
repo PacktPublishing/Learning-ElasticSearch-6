@@ -1,4 +1,4 @@
-# Learning ElasticSearch 6 [Video]
+# Learning Elasticsearch 6 [Video]
 This is the code repository for [Learning Elasticsearch 6 [Video]](https://www.packtpub.com/big-data-and-business-intelligence/learning-elasticsearch-6-video?utm_source=github&utm_medium=repository&utm_campaign=9781788997300), published by [Packt](https://www.packtpub.com/?utm_source=github). It contains all the supporting project files necessary to work through the video course from start to finish.
 ## About the Video Course
 his course is a hands-on guide to using Elasticsearch used in conjunction with Elastic Stack, to ship, parse, store, and analyze data. You’ll start this course by getting an understanding of what Elasticsearch is, what it’s used for, and why it’s important. Then you’ll be introduced to the new features in Elasticsearch 6. 
