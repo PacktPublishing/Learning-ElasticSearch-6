@@ -1,0 +1,203 @@
+#Section 6 ########################################
+
+#Section 6.1 #######################################
+#demonstrate term versus full-text search
+PUT /test_movies
+{
+  "mappings": {
+    "film" : {
+      "properties": {
+        "full": {
+          "type":"text"
+        },
+        "exact": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}
+
+
+#ADD A DOCUMENT
+PUT /test_movies/film/1
+{
+  "full":"Best Day of the Summer",
+  "exact":"Best Day of the Summer"
+}
+
+#Note: Full field is analyzed and broken down before being placed into inverted indices, the exact field will not
+
+# Run term queries on each field
+GET /test_movies/film/_count
+{
+  "query": {
+    "term": {
+      "exact": "Best Day of the Summer"
+    }
+  }
+}
+
+GET /test_movies/film/_count
+{
+  "query": {
+    "term": {
+      "full": "Best Day of the Summer"
+    }
+  }
+}
+
+
+#Range QUERY with year###################################
+GET /movies/movie/_search
+{
+  "query": {
+    "range": {
+      "year": {"gte":2015, "lt": 2016}
+    }
+  }
+}
+
+
+#BOOSTING################################################
+
+#BOOSTING INCLUDED IN EVERY QUERY... IF YOU WANT TO ADD MORE WEIGHT TO A GIVEN FIELD IN RESULTS FOR EVERY QUERY. Say you want to TITLE field to carry more weight than the description field
+[in presentation]
+PUT es_boosting
+{
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "title": {
+          "type": "text",
+          "boost": 2 
+        },
+        "description": {
+          "type": "text"
+        }
+      }
+    }
+  }
+}
+
+#This is an example of field mapping boosting. This replaced index time boosting, which was depricated as of ElasticSearch 5. Index time boosting is generally a bad idea, for among other reasons, because it  boosting could not be changed without reindexing all documents.
+
+
+#PER QUERY BASIS
+
+#Say you want to, instead, do boosting on a per query basis. This means that any matches on the title field will exceed those on the description field by a factor of 2 - that's twice the weight. If the boost value is three it would be.... you guessed it, 3 times the weight of any matches on the description field.
+
+
+#WithOUT boosting - Let's examin the score for the top three results. Now let's apply boosting to this query
+
+GET /movies/movie/_search
+{
+    "query": {
+        "match" : {
+            "title": {
+                "query": "Night of the Living Dead"
+            }
+        }
+    }
+}
+
+
+#With boosting... View resulting score (double the original score while others remain constant)
+GET /movies/movie/_search
+{
+    "query": {
+        "match" : {
+            "title": {
+                "query": "Night of the Living Dead",
+                "boost": 2
+            }
+        }
+    }
+}
+
+#Section 6.3 #######################################
+#GEO SEARCH 
+
+#GEO BOUNDS (square) around all IP ADDRESSED.  
+GET /INDEX_CREATED_FROM_LOG_ANALYSIS/_search
+{
+  "query": {
+    "match_all": {}
+  },
+  "size": 0,
+  "aggs": {
+    "viewport": {
+      "geo_bounds": {
+        "field":"pin.location",
+        "wrap_longitude":true
+      }
+    }
+  }
+}
+
+#NOTE: This index is included in the snapshot. No need to create it again########
+#AGGREGATIONS - create es_agg/aggre1
+PUT es_agg
+{
+    "settings" : {
+        "number_of_shards" : 1
+    },
+    "mappings" : {
+        "aggre1" : {
+            "properties" : {
+                "name" : { "type" : "text" },
+                "rating": { "type" : "float" },
+                "sold" : { "type" : "long" }
+            }
+        }
+    }
+}
+
+#Adding.....
+PUT /es_agg/aggre1/1
+{
+  "name":"ES Learning",
+  "rating": 4.2,
+  "sold": 600
+}
+####################################################################################
+
+#Get avg rating:
+GET /es_agg/aggre1/_search
+{
+  "size":0,
+  "aggs": {
+    "avg_rating": {
+      "avg": {
+        "field":"rating"
+      }
+    }
+  }
+}
+
+#Get avg sold:
+GET /es_agg/aggre1/_search
+{
+  "size":0,
+  "aggs": {
+    "avg_sold": {
+      "avg": {
+        "field":"sold"
+      }
+    }
+  }
+}
+
+#Get stats (mean, median, standard deviation etc.)
+
+GET /es_agg/aggre1/_search
+{
+  "size":0,
+  "aggs":{
+    "book_stats": {
+      "extended_stats": {
+        "field": "rating"
+      }
+    }
+  }
+}
