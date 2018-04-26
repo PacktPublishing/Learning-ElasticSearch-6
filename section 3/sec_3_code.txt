@@ -1,0 +1,137 @@
+#Section 3.2 #######################################
+#Searching with RESTful API
+GET /movies/_count
+
+
+GET /movies/movie/_count 
+{
+"query": { 
+    "term":{
+      "genre":"comedy"
+    } 
+  } 
+}
+
+#Assumes that genre field is the of the type keyword
+
+
+GET /_all/movie
+
+
+GET /movies/movie/_count 
+{ 
+  "query": {
+    "match":{
+      "title":"Need for Speed"
+    } 
+  } 
+}
+
+
+#Assumes title field is described as or is of the type text
+
+
+GET movies/_search?size=5&from=10
+
+
+GET movies,movies2/_search
+
+
+GET /movies/movie
+{
+  "fields": ["title","year"],
+  "query": {
+    "term": {
+      "genre":"comedy"
+    } 
+  }
+}
+
+#Section 3.3 #######################################
+#Updating w/ RESTful API
+
+PUT /index_test/type_test/6 
+{
+  "name":"Ethan Anthony",
+  "interest":"ElasticSearch" 
+}
+
+
+GET /index_test/type_test/6
+
+PUT /index_test/ type_test/6 
+{
+  "name":"EA" 
+}
+
+
+GET /index_test/type_test/6
+
+
+PUT /index_test/type_test/8 
+{
+  "name":"Bill Gates",
+  "interest":"Microsoft" 
+}
+
+
+POST /index_test/type_test/8/_update 
+{
+  "doc": { 
+    "interest":"world hunger" 
+  } 
+}
+
+GET /index_test/type_test/8
+
+
+#Section 3.4 #######################################
+#Introduction to DSL
+
+POST movies/movie/_search 
+{ 
+  "query": {
+    "match_all":{} 
+  }
+}
+
+
+
+POST /movies/movie/_search 
+{ 
+  "query": { 
+    "multi_match": {
+      "query": "horror",  
+      "fields": ["genre","title"] 
+    }
+  } 
+}
+
+#Section 3.5 #######################################
+#DSL: Context, relevancy and score
+GET movies/movie/_search
+{
+  "query": { 
+    "bool": { 
+      "must": [
+        { "match": { "title": "Night" }} 
+      ],
+      "filter": [ 
+        { "term":  { "genre": "Horror" }}
+      ]
+    }
+  }
+}
+
+
+#Section 3.6 #######################################
+#Exist Query
+
+GET /movies/_search 
+{
+  "query":{ 
+    "exist":{
+      "field":"actor"
+    }
+  } 
+}
